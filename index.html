@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bitunix Parciales</title>
+
+<!-- iOS / PWA meta -->
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Parciales">
+
+<!-- Manifest (para Android y algunos navegadores) -->
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- Iconos (ponlos tú con esos nombres en la misma carpeta) -->
+<link rel="apple-touch-icon" href="icon-180.png">
+
+<style>
+  body{background:#0b1220;color:#e5e7eb;font-family:system-ui;padding:20px;margin:0;}
+  .box{max-width:420px;margin:auto;background:#0f172a;border-radius:14px;padding:18px;}
+  h1{font-size:16px;margin:0 0 12px;}
+
+  .seg{display:flex; gap:10px; margin:8px 0 14px;}
+  .btn{
+    flex:1; padding:12px; border-radius:12px;
+    border:1px solid #1f2937;
+    background:#0b1220; color:#e5e7eb;
+    cursor:pointer; user-select:none; text-align:center;
+    font-weight:700;
+  }
+  .btn.active{
+    background:#1f2937;
+    border-color:#334155;
+    box-shadow: 0 0 0 1px rgba(148,163,184,.25) inset;
+  }
+
+  label{font-size:12px;color:#9ca3af;}
+  input{
+    width:100%;margin:6px 0 12px;padding:12px;border-radius:12px;border:none;
+    background:#020617;color:#fff;font-size:16px;
+  }
+
+  .result{background:#020617;border-radius:12px;padding:14px;margin-top:10px;}
+  .small{font-size:12px;color:#9ca3af;}
+  .big{font-size:22px;font-weight:900; font-variant-numeric: tabular-nums;}
+  .hint{font-size:12px;color:#9ca3af;margin-top:10px;line-height:1.35;}
+
+  .tp{color:#22c55e;}
+  .sl{color:#ef4444;}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Parciales (Bitunix)</h1>
+
+  <label>Lado</label>
+  <div class="seg" id="sideSeg">
+    <div class="btn active" data-side="short">Short</div>
+    <div class="btn" data-side="long">Long</div>
+  </div>
+
+  <label>Precio de entrada</label>
+  <input id="entry" type="number" inputmode="decimal" step="0.0001" value="223.59">
+
+  <label>Margen (USDT)</label>
+  <div class="seg" id="marginSeg">
+    <div class="btn active" data-margin="50">50</div>
+    <div class="btn" data-margin="75">75</div>
+  </div>
+
+  <label>Estrategia</label>
+  <div class="seg" id="modeSeg">
+    <div class="btn active" data-mode="ema8">EMA8</div>
+    <div class="btn" data-mode="boll">Bollinger</div>
+  </div>
+
+  <div class="result" style="margin-top:6px;">
+    <div class="small">Regla activa</div>
+    <div class="big" id="ruleBadge">—</div>
+  </div>
+
+  <div class="result">
+    <div class="small">Qty a cerrar (COPIAR EN BITUNIX)</div>
+    <div class="big" id="qtyClose">—</div>
+  </div>
+
+  <div class="result">
+    <div class="small">Precio TP (limit) <span class="tp">TP</span></div>
+    <div class="big" id="tpPrice">—</div>
+  </div>
+
+  <div class="result">
+    <div class="small">Precio SL (stop) <span class="sl">SL</span></div>
+    <div class="big" id="slPrice">—</div>
+  </div>
+
+  <div class="hint" id="modeHint">—</div>
+</div>
+
+<script>
+  const MODES = {
+    ema8: { tpPct: 0.4, slPct: 0.4, partialPct: 60, lev: 30 },
+    boll: { tpPct: 0.6, slPct: 0.5, partialPct: 50, lev: 20 }
+  };
+
+  let state = { side: "short", margin: 50, mode: "ema8" };
+
+  const entryEl = document.getElementById("entry");
+  const qtyCloseEl = document.getElementById("qtyClose");
+  const tpPriceEl = document.getElementById("tpPrice");
+  const slPriceEl = document.getElementById("slPrice");
+  const hintEl = document.getElementById("modeHint");
+  const ruleBadgeEl = document.getElementById("ruleBadge");
+
+  function setActive(containerId, attr, value){
+    const box = document.getElementById(containerId);
+    box.querySelectorAll(".btn").forEach(b=>{
+      const v = b.getAttribute(attr);
+      b.classList.toggle("active", v === value);
+    });
+  }
+
+  function calc(){
+    const entry = parseFloat(entryEl.value);
+    if(!(entry>0)) return;
+
+    const cfg = MODES[state.mode];
+
+    ruleBadgeEl.textContent =
+      `${state.mode.toUpperCase()} | TP ${cfg.tpPct}% | SL ${cfg.slPct}% | Parcial ${cfg.partialPct}% | Lev ${cfg.lev}x`;
+
+    const notional = state.margin * cfg.lev;
+    const qtyTotal = notional / entry;
+    const qtyClose = qtyTotal * (cfg.partialPct/100);
+
+    const tpMove = cfg.tpPct/100;
+    const slMove = cfg.slPct/100;
+
+    let tpPrice, slPrice;
+    if (state.side === "long") {
+      tpPrice = entry * (1 + tpMove);
+      slPrice = entry * (1 - slMove);
+    } else {
+      tpPrice = entry * (1 - tpMove);
+      slPrice = entry * (1 + slMove);
+    }
+
+    qtyCloseEl.textContent = qtyClose.toFixed(6);
+    tpPriceEl.textContent = tpPrice.toFixed(4);
+    slPriceEl.textContent = slPrice.toFixed(4);
+
+    hintEl.textContent = `Side: ${state.side.toUpperCase()} | Margen: ${state.margin} | Qty total: ${qtyTotal.toFixed(6)}`;
+  }
+
+  document.getElementById("sideSeg").addEventListener("click", (e)=>{
+    const btn = e.target.closest(".btn"); if(!btn) return;
+    state.side = btn.dataset.side;
+    setActive("sideSeg","data-side", state.side);
+    calc();
+  });
+
+  document.getElementById("marginSeg").addEventListener("click", (e)=>{
+    const btn = e.target.closest(".btn"); if(!btn) return;
+    state.margin = parseFloat(btn.dataset.margin);
+    setActive("marginSeg","data-margin", String(state.margin));
+    calc();
+  });
+
+  document.getElementById("modeSeg").addEventListener("click", (e)=>{
+    const btn = e.target.closest(".btn"); if(!btn) return;
+    state.mode = btn.dataset.mode;
+    setActive("modeSeg","data-mode", state.mode);
+    calc();
+  });
+
+  entryEl.addEventListener("input", calc);
+
+  // Registrar service worker (opcional, para que cargue offline)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
+
+  calc();
+</script>
+</body>
+</html>
