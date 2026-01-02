@@ -1,4 +1,4 @@
-const CACHE = "parciales-v1";
+const CACHE = "parciales-v2";
 const ASSETS = [
   "./",
   "./index.html",

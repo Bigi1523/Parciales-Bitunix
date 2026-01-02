@@ -3,18 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Bitunix Parciales</title>
+<title>Parciales Bitunix</title>
 
-<!-- iOS / PWA meta -->
 <meta name="theme-color" content="#0b1220">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Parciales">
 
-<!-- Manifest (para Android y algunos navegadores) -->
 <link rel="manifest" href="manifest.webmanifest">
-
-<!-- Iconos (ponlos tú con esos nombres en la misma carpeta) -->
 <link rel="apple-touch-icon" href="icon-180.png">
 
 <style>
@@ -22,13 +18,23 @@
   .box{max-width:420px;margin:auto;background:#0f172a;border-radius:14px;padding:18px;}
   h1{font-size:16px;margin:0 0 12px;}
 
+  label{font-size:12px;color:#9ca3af;}
+
+  input{
+    width:100%;margin:6px 0 12px;padding:12px;border-radius:12px;border:none;
+    background:#020617;color:#fff;font-size:16px;
+  }
+  input::placeholder{color:#475569;}
+
   .seg{display:flex; gap:10px; margin:8px 0 14px;}
+
+  /* Botón base */
   .btn{
     flex:1; padding:12px; border-radius:12px;
     border:1px solid #1f2937;
     background:#0b1220; color:#e5e7eb;
     cursor:pointer; user-select:none; text-align:center;
-    font-weight:700;
+    font-weight:800;
   }
   .btn.active{
     background:#1f2937;
@@ -36,10 +42,24 @@
     box-shadow: 0 0 0 1px rgba(148,163,184,.25) inset;
   }
 
-  label{font-size:12px;color:#9ca3af;}
-  input{
-    width:100%;margin:6px 0 12px;padding:12px;border-radius:12px;border:none;
-    background:#020617;color:#fff;font-size:16px;
+  /* Short/Long: colores */
+  .btn.short{
+    background:#1a0b0b;           /* rojo oscuro */
+    border-color:#3b1a1a;
+  }
+  .btn.long{
+    background:#0b1a10;           /* verde oscuro */
+    border-color:#1a3b24;
+  }
+  .btn.short.active{
+    background:#7f1d1d;           /* rojo claro (activo) */
+    border-color:#ef4444;
+    box-shadow: 0 0 0 1px rgba(239,68,68,.25) inset;
+  }
+  .btn.long.active{
+    background:#166534;           /* verde claro (activo) */
+    border-color:#22c55e;
+    box-shadow: 0 0 0 1px rgba(34,197,94,.25) inset;
   }
 
   .result{background:#020617;border-radius:12px;padding:14px;margin-top:10px;}
@@ -49,6 +69,27 @@
 
   .tp{color:#22c55e;}
   .sl{color:#ef4444;}
+
+  .row{
+    display:flex; gap:10px; align-items:stretch;
+  }
+  .copyBtn{
+    padding:12px;
+    border-radius:12px;
+    border:1px solid #1f2937;
+    background:#0b1220;
+    color:#e5e7eb;
+    font-weight:900;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .copyBtn:active{transform:scale(0.99);}
+  .toast{
+    margin-top:8px;
+    font-size:12px;
+    color:#a7f3d0;
+    min-height:16px;
+  }
 </style>
 </head>
 <body>
@@ -57,12 +98,13 @@
 
   <label>Lado</label>
   <div class="seg" id="sideSeg">
-    <div class="btn active" data-side="short">Short</div>
-    <div class="btn" data-side="long">Long</div>
+    <div class="btn short active" data-side="short">Short</div>
+    <div class="btn long" data-side="long">Long</div>
   </div>
 
   <label>Precio de entrada</label>
-  <input id="entry" type="number" inputmode="decimal" step="0.0001" value="223.59">
+  <!-- 1) Entrada vacía por defecto -->
+  <input id="entry" type="number" inputmode="decimal" step="0.0001" placeholder="Ej: 223.59">
 
   <label>Margen (USDT)</label>
   <div class="seg" id="marginSeg">
@@ -83,7 +125,14 @@
 
   <div class="result">
     <div class="small">Qty a cerrar (COPIAR EN BITUNIX)</div>
-    <div class="big" id="qtyClose">—</div>
+
+    <!-- 3) Botón copiar Qty -->
+    <div class="row" style="margin-top:8px;">
+      <div class="big" id="qtyClose" style="flex:1;">—</div>
+      <button class="copyBtn" id="copyQtyBtn" type="button">Copiar Qty</button>
+    </div>
+
+    <div class="toast" id="toast"></div>
   </div>
 
   <div class="result">
@@ -113,6 +162,8 @@
   const slPriceEl = document.getElementById("slPrice");
   const hintEl = document.getElementById("modeHint");
   const ruleBadgeEl = document.getElementById("ruleBadge");
+  const copyBtn = document.getElementById("copyQtyBtn");
+  const toastEl = document.getElementById("toast");
 
   function setActive(containerId, attr, value){
     const box = document.getElementById(containerId);
@@ -124,7 +175,16 @@
 
   function calc(){
     const entry = parseFloat(entryEl.value);
-    if(!(entry>0)) return;
+
+    // Si está vacío, no mostramos NaN, dejamos guiones
+    if(!(entry>0)) {
+      ruleBadgeEl.textContent = `${state.mode.toUpperCase()} | TP ${MODES[state.mode].tpPct}% | SL ${MODES[state.mode].slPct}% | Parcial ${MODES[state.mode].partialPct}% | Lev ${MODES[state.mode].lev}x`;
+      qtyCloseEl.textContent = "—";
+      tpPriceEl.textContent = "—";
+      slPriceEl.textContent = "—";
+      hintEl.textContent = `Side: ${state.side.toUpperCase()} | Margen: ${state.margin}`;
+      return;
+    }
 
     const cfg = MODES[state.mode];
 
@@ -154,6 +214,27 @@
     hintEl.textContent = `Side: ${state.side.toUpperCase()} | Margen: ${state.margin} | Qty total: ${qtyTotal.toFixed(6)}`;
   }
 
+  async function copyQty(){
+    const text = qtyCloseEl.textContent.trim();
+    if(text === "—" || !text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toastEl.textContent = "✅ Qty copiada";
+    } catch (e) {
+      // Fallback iOS antiguos
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      toastEl.textContent = "✅ Qty copiada";
+    }
+
+    setTimeout(()=> toastEl.textContent = "", 1200);
+  }
+
   document.getElementById("sideSeg").addEventListener("click", (e)=>{
     const btn = e.target.closest(".btn"); if(!btn) return;
     state.side = btn.dataset.side;
@@ -175,9 +256,9 @@
     calc();
   });
 
-  entryEl.addEventListener("input", calc);
+  entryEl.addEventListener("input", ()=>{ toastEl.textContent=""; calc(); });
+  copyBtn.addEventListener("click", copyQty);
 
-  // Registrar service worker (opcional, para que cargue offline)
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(()=>{});
   }
