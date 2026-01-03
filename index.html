@@ -23,10 +23,12 @@
   input{
     width:100%;margin:6px 0 12px;padding:12px;border-radius:12px;border:none;
     background:#020617;color:#fff;font-size:16px;
+    outline:none;
   }
   input::placeholder{color:#475569;}
+  input.warn{ box-shadow: 0 0 0 2px rgba(239,68,68,.55) inset; }
 
-  .seg{display:flex; gap:10px; margin:8px 0 14px;}
+  .seg{display:flex; gap:10px; margin:8px 0 14px; align-items:stretch;}
 
   /* Botón base */
   .btn{
@@ -43,23 +45,36 @@
   }
 
   /* Short/Long: colores */
-  .btn.short{
-    background:#1a0b0b;           /* rojo oscuro */
-    border-color:#3b1a1a;
-  }
-  .btn.long{
-    background:#0b1a10;           /* verde oscuro */
-    border-color:#1a3b24;
-  }
+  .btn.short{ background:#1a0b0b; border-color:#3b1a1a; }
+  .btn.long{  background:#0b1a10; border-color:#1a3b24; }
+
   .btn.short.active{
-    background:#7f1d1d;           /* rojo claro (activo) */
+    background:#7f1d1d;
     border-color:#ef4444;
     box-shadow: 0 0 0 1px rgba(239,68,68,.25) inset;
   }
   .btn.long.active{
-    background:#166534;           /* verde claro (activo) */
+    background:#166534;
     border-color:#22c55e;
     box-shadow: 0 0 0 1px rgba(34,197,94,.25) inset;
+  }
+
+  /* Custom margin input inline */
+  .miniInput{
+    flex:1;
+    margin:0;
+    padding:12px;
+    border-radius:12px;
+    border:1px solid #1f2937;
+    background:#020617;
+    color:#fff;
+    font-size:16px;
+    min-width:0;
+  }
+  .miniInput::placeholder{color:#475569;}
+  .miniInput.activeCustom{
+    border-color:#60a5fa;
+    box-shadow: 0 0 0 1px rgba(96,165,250,.35) inset;
   }
 
   .result{background:#020617;border-radius:12px;padding:14px;margin-top:10px;}
@@ -69,10 +84,11 @@
 
   .tp{color:#22c55e;}
   .sl{color:#ef4444;}
+  .pos{color:#22c55e;}
+  .neg{color:#ef4444;}
+  .muted{color:#9ca3af;}
 
-  .row{
-    display:flex; gap:10px; align-items:stretch;
-  }
+  .row{display:flex; gap:10px; align-items:stretch;}
   .copyBtn{
     padding:12px;
     border-radius:12px;
@@ -90,8 +106,34 @@
     color:#a7f3d0;
     min-height:16px;
   }
+
+  /* TP/SL card with pnl on the right */
+  .line2{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:12px;
+  }
+  .line2 .left{
+    min-width:0;
+  }
+  .line2 .right{
+    text-align:right;
+    white-space:nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .pnlTag{
+    font-size:12px;
+    color:#9ca3af;
+    margin-bottom:4px;
+  }
+  .pnlVal{
+    font-size:18px;
+    font-weight:900;
+  }
 </style>
 </head>
+
 <body>
 <div class="box">
   <h1>Parciales (Bitunix)</h1>
@@ -103,13 +145,14 @@
   </div>
 
   <label>Precio de entrada</label>
-  <!-- 1) Entrada vacía por defecto -->
   <input id="entry" type="number" inputmode="decimal" step="0.0001" placeholder="Ej: 223.59">
 
   <label>Margen (USDT)</label>
-  <div class="seg" id="marginSeg">
-    <div class="btn active" data-margin="50">50</div>
-    <div class="btn" data-margin="75">75</div>
+  <!-- 3 en una línea: 50 / 75 / custom -->
+  <div class="seg" id="marginRow" style="margin-top:6px;">
+    <div class="btn active" id="m50" data-margin="50">50</div>
+    <div class="btn" id="m75" data-margin="75">75</div>
+    <input class="miniInput" id="mCustom" type="number" inputmode="decimal" step="0.01" placeholder="Custom">
   </div>
 
   <label>Estrategia</label>
@@ -125,45 +168,71 @@
 
   <div class="result">
     <div class="small">Qty a cerrar (COPIAR EN BITUNIX)</div>
-
-    <!-- 3) Botón copiar Qty -->
     <div class="row" style="margin-top:8px;">
       <div class="big" id="qtyClose" style="flex:1;">—</div>
       <button class="copyBtn" id="copyQtyBtn" type="button">Copiar Qty</button>
     </div>
-
     <div class="toast" id="toast"></div>
   </div>
 
-  <div class="result">
-    <div class="small">Precio TP (limit) <span class="tp">TP</span></div>
-    <div class="big" id="tpPrice">—</div>
+  <div class="result" id="tpCard">
+    <div class="small">TP (limit) <span class="tp">TP</span></div>
+    <div class="line2" style="margin-top:6px;">
+      <div class="left">
+        <div class="big" id="tpPrice">—</div>
+      </div>
+      <div class="right">
+        <div class="pnlTag">PnL neto</div>
+        <div class="pnlVal" id="tpPnl">—</div>
+      </div>
+    </div>
+    <div class="small muted" id="tpNote" style="margin-top:6px;">TP PnL = cierre del parcial</div>
   </div>
 
-  <div class="result">
-    <div class="small">Precio SL (stop) <span class="sl">SL</span></div>
-    <div class="big" id="slPrice">—</div>
+  <div class="result" id="slCard">
+    <div class="small">SL (stop) <span class="sl">SL</span></div>
+    <div class="line2" style="margin-top:6px;">
+      <div class="left">
+        <div class="big" id="slPrice">—</div>
+      </div>
+      <div class="right">
+        <div class="pnlTag">PnL neto</div>
+        <div class="pnlVal" id="slPnl">—</div>
+      </div>
+    </div>
+    <div class="small muted" id="slNote" style="margin-top:6px;">SL PnL = cierre 100%</div>
   </div>
 
   <div class="hint" id="modeHint">—</div>
 </div>
 
 <script>
+  // === Config estrategia ===
   const MODES = {
     ema8: { tpPct: 0.4, slPct: 0.4, partialPct: 60, lev: 30 },
     boll: { tpPct: 0.6, slPct: 0.5, partialPct: 50, lev: 20 }
   };
 
-  let state = { side: "short", margin: 50, mode: "ema8" };
+  // Fee fijo Bitunix (peor caso) - ida+vuelta total (%)
+  // (sin mostrarlo en UI)
+  const FEE_ROUNDTRIP_PCT = 0.06; // 0.06%
 
-  const entryEl = document.getElementById("entry");
-  const qtyCloseEl = document.getElementById("qtyClose");
+  let state = { side: "short", margin: 50, customMargin: 0, mode: "ema8" };
+
+  const entryEl   = document.getElementById("entry");
+  const qtyCloseEl= document.getElementById("qtyClose");
   const tpPriceEl = document.getElementById("tpPrice");
   const slPriceEl = document.getElementById("slPrice");
-  const hintEl = document.getElementById("modeHint");
+  const tpPnlEl   = document.getElementById("tpPnl");
+  const slPnlEl   = document.getElementById("slPnl");
+  const hintEl    = document.getElementById("modeHint");
   const ruleBadgeEl = document.getElementById("ruleBadge");
-  const copyBtn = document.getElementById("copyQtyBtn");
-  const toastEl = document.getElementById("toast");
+  const copyBtn   = document.getElementById("copyQtyBtn");
+  const toastEl   = document.getElementById("toast");
+
+  const m50Btn    = document.getElementById("m50");
+  const m75Btn    = document.getElementById("m75");
+  const mCustomEl = document.getElementById("mCustom");
 
   function setActive(containerId, attr, value){
     const box = document.getElementById(containerId);
@@ -173,28 +242,64 @@
     });
   }
 
+  function fmtNum(x, dec=6){
+    if(!Number.isFinite(x)) return "—";
+    // mantener simple (punto decimal), pero iOS muestra bien
+    return x.toFixed(dec);
+  }
+
+  function fmtUSDT(x){
+    if(!Number.isFinite(x)) return "—";
+    const signClass = x >= 0 ? "pos" : "neg";
+    const val = Math.abs(x).toFixed(2);
+    return `<span class="${signClass}">${x<0?'-':''}${val} USDT</span>`;
+  }
+
+  function getMarginUsed(){
+    const cm = parseFloat(mCustomEl.value);
+    if (Number.isFinite(cm) && cm > 0) return cm;
+    return state.margin;
+  }
+
+  // Fee aprox “peor caso” usando notional promedio (entrada+salida)/2 * qty
+  function feeOnClose(entry, exit, qty){
+    const fee = (FEE_ROUNDTRIP_PCT/100);
+    const avgNotional = ((entry + exit) / 2) * qty;
+    return avgNotional * fee;
+  }
+
   function calc(){
     const entry = parseFloat(entryEl.value);
-
-    // Si está vacío, no mostramos NaN, dejamos guiones
-    if(!(entry>0)) {
-      ruleBadgeEl.textContent = `${state.mode.toUpperCase()} | TP ${MODES[state.mode].tpPct}% | SL ${MODES[state.mode].slPct}% | Parcial ${MODES[state.mode].partialPct}% | Lev ${MODES[state.mode].lev}x`;
-      qtyCloseEl.textContent = "—";
-      tpPriceEl.textContent = "—";
-      slPriceEl.textContent = "—";
-      hintEl.textContent = `Side: ${state.side.toUpperCase()} | Margen: ${state.margin}`;
-      return;
-    }
-
     const cfg = MODES[state.mode];
+    const marginUsed = getMarginUsed();
 
+    // Badge siempre
     ruleBadgeEl.textContent =
       `${state.mode.toUpperCase()} | TP ${cfg.tpPct}% | SL ${cfg.slPct}% | Parcial ${cfg.partialPct}% | Lev ${cfg.lev}x`;
 
-    const notional = state.margin * cfg.lev;
+    // custom highlight
+    const cm = parseFloat(mCustomEl.value);
+    const customActive = Number.isFinite(cm) && cm > 0;
+    mCustomEl.classList.toggle("activeCustom", customActive);
+
+    // Si entrada vacía => guiones
+    if(!(entry>0)) {
+      qtyCloseEl.textContent = "—";
+      tpPriceEl.textContent = "—";
+      slPriceEl.textContent = "—";
+      tpPnlEl.textContent   = "—";
+      slPnlEl.textContent   = "—";
+      hintEl.textContent = `Side: ${state.side.toUpperCase()} | Margen: ${marginUsed}`;
+      entryEl.classList.remove("warn");
+      return;
+    }
+
+    // Cálculo base
+    const notional = marginUsed * cfg.lev;
     const qtyTotal = notional / entry;
     const qtyClose = qtyTotal * (cfg.partialPct/100);
 
+    // TP/SL precio
     const tpMove = cfg.tpPct/100;
     const slMove = cfg.slPct/100;
 
@@ -207,11 +312,34 @@
       slPrice = entry * (1 + slMove);
     }
 
-    qtyCloseEl.textContent = qtyClose.toFixed(6);
-    tpPriceEl.textContent = tpPrice.toFixed(4);
-    slPriceEl.textContent = slPrice.toFixed(4);
+    // PnL neto (peor caso fee):
+    // TP: neto cerrando SOLO qtyClose en tpPrice
+    // SL: neto cerrando 100% qtyTotal en slPrice
+    const grossTP = (state.side === "long")
+      ? qtyClose * (tpPrice - entry)
+      : qtyClose * (entry - tpPrice);
 
-    hintEl.textContent = `Side: ${state.side.toUpperCase()} | Margen: ${state.margin} | Qty total: ${qtyTotal.toFixed(6)}`;
+    const grossSL = (state.side === "long")
+      ? qtyTotal * (slPrice - entry)
+      : qtyTotal * (entry - slPrice);
+
+    const feeTP = feeOnClose(entry, tpPrice, qtyClose);
+    const feeSL = feeOnClose(entry, slPrice, qtyTotal);
+
+    const netTP = grossTP - feeTP;
+    const netSL = grossSL - feeSL;
+
+    qtyCloseEl.textContent = qtyClose.toFixed(6);
+    tpPriceEl.textContent  = tpPrice.toFixed(4);
+    slPriceEl.textContent  = slPrice.toFixed(4);
+
+    tpPnlEl.innerHTML = fmtUSDT(netTP);
+    slPnlEl.innerHTML = fmtUSDT(netSL);
+
+    hintEl.textContent =
+      `Side: ${state.side.toUpperCase()} | Margen: ${marginUsed} | Qty total: ${qtyTotal.toFixed(6)}`;
+
+    entryEl.classList.remove("warn");
   }
 
   async function copyQty(){
@@ -222,7 +350,6 @@
       await navigator.clipboard.writeText(text);
       toastEl.textContent = "✅ Qty copiada";
     } catch (e) {
-      // Fallback iOS antiguos
       const ta = document.createElement("textarea");
       ta.value = text;
       document.body.appendChild(ta);
@@ -231,10 +358,10 @@
       document.body.removeChild(ta);
       toastEl.textContent = "✅ Qty copiada";
     }
-
     setTimeout(()=> toastEl.textContent = "", 1200);
   }
 
+  // === Events ===
   document.getElementById("sideSeg").addEventListener("click", (e)=>{
     const btn = e.target.closest(".btn"); if(!btn) return;
     state.side = btn.dataset.side;
@@ -242,10 +369,22 @@
     calc();
   });
 
-  document.getElementById("marginSeg").addEventListener("click", (e)=>{
+  // margin buttons
+  document.getElementById("marginRow").addEventListener("click", (e)=>{
     const btn = e.target.closest(".btn"); if(!btn) return;
-    state.margin = parseFloat(btn.dataset.margin);
-    setActive("marginSeg","data-margin", String(state.margin));
+    const v = parseFloat(btn.dataset.margin);
+    if(Number.isFinite(v)){
+      state.margin = v;
+      // si tocas 50/75, NO borramos custom automáticamente (por si lo quieres mantener),
+      // pero si custom > 0 seguirá teniendo prioridad.
+      setActive("marginRow","data-margin", String(state.margin));
+      calc();
+    }
+  });
+
+  // custom margin override
+  mCustomEl.addEventListener("input", ()=>{
+    toastEl.textContent="";
     calc();
   });
 
@@ -263,6 +402,7 @@
     navigator.serviceWorker.register("./sw.js").catch(()=>{});
   }
 
+  // Init
   calc();
 </script>
 </body>
