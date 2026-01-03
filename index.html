@@ -131,6 +131,21 @@
     font-size:18px;
     font-weight:900;
   }
+
+  /* ======= NUEVO: copiar TP/SL tocando el precio (con icono chico) ======= */
+  .copyVal{
+    display:inline-flex;
+    align-items:baseline;
+    gap:8px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .copyVal:active{transform:scale(.995)}
+  .copyIco{
+    font-size:14px;
+    opacity:.65;
+    line-height:1;
+  }
 </style>
 </head>
 
@@ -179,7 +194,11 @@
     <div class="small">TP (limit) <span class="tp">TP</span></div>
     <div class="line2" style="margin-top:6px;">
       <div class="left">
-        <div class="big" id="tpPrice">—</div>
+        <!-- NUEVO: envoltorio clicable -->
+        <div class="big copyVal" id="tpCopy">
+          <span id="tpPrice">—</span>
+          <span class="copyIco" aria-hidden="true">⧉</span>
+        </div>
       </div>
       <div class="right">
         <div class="pnlTag">PnL neto</div>
@@ -193,7 +212,11 @@
     <div class="small">SL (stop) <span class="sl">SL</span></div>
     <div class="line2" style="margin-top:6px;">
       <div class="left">
-        <div class="big" id="slPrice">—</div>
+        <!-- NUEVO: envoltorio clicable -->
+        <div class="big copyVal" id="slCopy">
+          <span id="slPrice">—</span>
+          <span class="copyIco" aria-hidden="true">⧉</span>
+        </div>
       </div>
       <div class="right">
         <div class="pnlTag">PnL neto</div>
@@ -233,6 +256,10 @@
   const m50Btn    = document.getElementById("m50");
   const m75Btn    = document.getElementById("m75");
   const mCustomEl = document.getElementById("mCustom");
+
+  // NUEVO: wrappers para copiar TP/SL
+  const tpCopyEl = document.getElementById("tpCopy");
+  const slCopyEl = document.getElementById("slCopy");
 
   function setActive(containerId, attr, value){
     const box = document.getElementById(containerId);
@@ -361,6 +388,26 @@
     setTimeout(()=> toastEl.textContent = "", 1200);
   }
 
+  // NUEVO: copiar TP/SL al tocar el precio
+  async function copyPriceFrom(el){
+    const text = (el.textContent || "").trim();
+    if(!text || text === "—") return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toastEl.textContent = "✅ Copiado";
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      toastEl.textContent = "✅ Copiado";
+    }
+    setTimeout(()=> toastEl.textContent = "", 1200);
+  }
+
   // === Events ===
   document.getElementById("sideSeg").addEventListener("click", (e)=>{
     const btn = e.target.closest(".btn"); if(!btn) return;
@@ -397,6 +444,10 @@
 
   entryEl.addEventListener("input", ()=>{ toastEl.textContent=""; calc(); });
   copyBtn.addEventListener("click", copyQty);
+
+  // NUEVO: click/tap para copiar TP/SL
+  tpCopyEl.addEventListener("click", ()=> copyPriceFrom(tpPriceEl));
+  slCopyEl.addEventListener("click", ()=> copyPriceFrom(slPriceEl));
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(()=>{});
